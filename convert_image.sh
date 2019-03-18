@@ -12,7 +12,7 @@ fi
 
 # Download number settings
 START_LINE=1
-CONVERT_NUM=10
+CONVERT_NUM=10000
 
 # Download folder settings
 IMAGE_FOLDER=${DIF_HOME}/'images'
@@ -22,7 +22,7 @@ INFO_FOLDER=${DIF_HOME}/'infos'
 # Download format settings
 IMAGE_FILENAME(){
 	echo $1 | cut -f 5- -d'/' # $1=url
-} 
+}
 FACE_FILENAME(){
 	printf '%s-%02d.jpg' $1 $2  # $1=id $2=crop_id
 }
@@ -31,7 +31,7 @@ INFO_FILENAME(){
 }
 
 # face augmentation settings
-CROP_ID_ANGLES="1,10\n2,20\n3,-10\n4,-20"
+CROP_ID_ANGLES="1,10\n2,20\n3,-10\n4,-20\n"
 
 # info export function
 EXPORT_INFO(){
@@ -39,7 +39,7 @@ EXPORT_INFO(){
 	crop_id=$1; shift;
 	angle=$1; shift;
 	info_path=$INFO_FOLDER/`INFO_FILENAME $id $crop_id`
-	
+
 }
 
 # program option parsing
@@ -57,9 +57,9 @@ do
 	face_w=$((${box_x2} - ${box_x1}))
 	face_h=$((${box_y2} - ${box_y1}))
 
-	# print info 
+	# print info
 	printf "%s: %-65s %5.1f %5.1f %5.1f %5.1f\n" $id $url $box_x1 $box_x2 $box_y1 $box_y2
-	
+
 	# download image
 	image_path=$IMAGE_FOLDER/`IMAGE_FILENAME $url`
 	if [ ! -f $image_path ]; then
@@ -73,7 +73,7 @@ do
 	fi
 
 	# face augmentation
-	printf $CROP_ID_ANGLES | while read crop_id angle
+	printf "1,10\n2,20\n3,-10\n4,-20\n" | while read crop_id angle
 	do
 		crop_path=$FACE_FOLDER/`FACE_FILENAME $id $crop_id`
 		if [ ! -f $crop_path ]; then
