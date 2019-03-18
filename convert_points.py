@@ -4,11 +4,26 @@ import numpy as np
 from functools import reduce
 import os.path
 from math import cos, sin, pi
+from argparse import ArgumentParser
 
-STOP_LIMIT = 10000
-csv_file_path = 'DiF/DiF_v1.csv'
+parser = ArgumentParser(description="python script to convert DiF points to separated csv points file")
+parser.add_argument('-s', '--start', help="start line number", default=1, required=True)
+parser.add_argument('-n', '--num', help='number of points to convert', default=100, required=True)
+parser.add_argument('-o', '--output', help='destination folder to store points', default='DiF/points',
+                    required=True)
+parser.add_argument('-i', '--input', help='input csv file or pkl file to read', default='DiF/DiF_v1.csv', required=False)
+
+
+args = parser.parse_args()
+
+START_LINE = int(args.start)
+CONVERT_NUM = int(args.num)
+csv_file_path = args.input
+points_dir_path = args.output
+
+
 pkl_file_path = 'DiF_v1_dataframe.pkl'
-points_dir_path = 'DiF/points'
+
 rotations = [(0, 0), (1, 10), (2, 20), (3, -10), (4, -20)]
 
 table_cols = ['id', 'url', 'width', 'height', 'box_x1', 'box_y1', 'box_x2', 'box_y2'] + \
@@ -22,12 +37,12 @@ def col_name(prefix, point_id, rot_id):
 
 if os.path.isfile(pkl_file_path):
     print('reading DataFrame directly')
-    table: DataFrame = pd.read_pickle(pkl_file_path).head(STOP_LIMIT)
+    table: DataFrame = pd.read_pickle(pkl_file_path).loc[START_LINE - 1:START_LINE + CONVERT_NUM - 1]
 else:
     print('reading csv file...')
     table: DataFrame = pd.read_csv(csv_file_path, sep=',', header=None, names=table_cols)
     table.to_pickle(pkl_file_path)
-    table = table.head(STOP_LIMIT)
+    table = table.loc[START_LINE - 1:START_LINE + CONVERT_NUM - 1]
 
 offset_matrix = table[['box_x1', 'box_y1']].to_numpy()
 size_matrix = table[['box_x2', 'box_y2']].to_numpy() - offset_matrix
