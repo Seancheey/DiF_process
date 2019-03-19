@@ -37,12 +37,12 @@ def col_name(prefix, point_id, rot_id):
 
 if os.path.isfile(pkl_file_path):
     print('reading DataFrame directly')
-    table: DataFrame = pd.read_pickle(pkl_file_path).loc[START_LINE - 1:START_LINE + CONVERT_NUM - 1]
+    table: DataFrame = pd.read_pickle(pkl_file_path).loc[START_LINE - 1:START_LINE + CONVERT_NUM - 2]
 else:
     print('reading csv file...')
     table: DataFrame = pd.read_csv(csv_file_path, sep=',', header=None, names=table_cols)
     table.to_pickle(pkl_file_path)
-    table = table.loc[START_LINE - 1:START_LINE + CONVERT_NUM - 1]
+    table = table.loc[START_LINE - 1:START_LINE + CONVERT_NUM - 2]
 
 offset_matrix = table[['box_x1', 'box_y1']].to_numpy()
 size_matrix = table[['box_x2', 'box_y2']].to_numpy() - offset_matrix
