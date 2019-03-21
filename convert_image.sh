@@ -103,12 +103,21 @@ do
 		magick ${image_path} -crop ${face_w}x${face_h}+${box_x1}+${box_y1} -resize 128x128\! ${face_path}
 	fi
 
-	# face augmentation
+	# face rotation augmentation
 	printf "1,10\n2,20\n3,-10\n4,-20\n" | while read crop_id angle
 	do
-		crop_path=${FACE_FOLDER}/`FACE_FILENAME ${id} ${crop_id}`
-		if [[ ! -f ${crop_path} ]]; then
-			magick convert ${face_path} -distort SRT ${angle} ${crop_path}
+		aug_path=${FACE_FOLDER}/`FACE_FILENAME ${id} ${crop_id}`
+		if [[ ! -f ${aug_path} ]]; then
+			magick convert ${face_path} -distort SRT ${angle} ${aug_path}
+		fi
+	done
+
+	# face transform augmentation
+	printf "5,10,0\n6,-10,0\n7,0,10\n8,0,-10\n" | while read aug_id x_offset y_offset
+	do
+		aug_path=${FACE_FOLDER}/`FACE_FILENAME ${id} ${aug_id}`
+		if [[ ! -f ${aug_path} ]]; then
+		    magick convert ${face_path} -roll -${x_offset}-${y_offset} ${aug_path}
 		fi
 	done
 done
