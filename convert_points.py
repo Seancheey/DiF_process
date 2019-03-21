@@ -62,6 +62,7 @@ augmentations = ((lambda x, y: x, 0),
                  (translate_x, -10),
                  (translate_y, 10),
                  (translate_y, -10),
+                 (lambda x, y: x, 0)
                  )
 
 

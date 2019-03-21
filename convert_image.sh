@@ -120,4 +120,13 @@ do
 		    magick convert ${face_path} -roll -${x_offset}-${y_offset} ${aug_path}
 		fi
 	done
+
+	# face gaussian shadow
+	printf "9,2\n" | while read aug_id shadow
+	do
+		aug_path=${FACE_FOLDER}/`FACE_FILENAME ${id} ${aug_id}`
+		if [[ ! -f ${aug_path} ]]; then
+		    magick convert ${face_path} -evaluate Gaussian-noise ${shadow} ${aug_path}
+		fi
+	done
 done
