@@ -1,4 +1,5 @@
 .DS_Store
 DiF_v1_dataframe.pkl
 DiF/
-
+test/
+.idea/
