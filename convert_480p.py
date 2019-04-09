@@ -1,9 +1,11 @@
 import pandas as pd
-from pandas import DataFrame
+from pandas import DataFrame, read_csv
 import numpy as np
 import os.path
 from matplotlib.image import imread as read_image
 from matplotlib.image import imsave as save_image
+import matplotlib.pyplot as plot
+from matplotlib.patches import Rectangle
 from urllib.request import urlretrieve
 from random import randint
 from argparse import ArgumentParser
@@ -37,28 +39,29 @@ def crop_face(image, img_width, img_height, box_x1, box_y1, box_x2, box_y2):
     elif img_width < target_image_width:
         pad = np.zeros(target_image_shape, dtype=int)
         x_offset = (target_image_width - img_width) // 2
-        possible_yoff_start = max([0, box_y2 - 640])
-        possible_yoff_end = min([img_height - 640, box_y1])
+        possible_yoff_start = max([0, box_y2 - target_image_height])
+        possible_yoff_end = min([img_height - target_image_height, box_y1])
         y_offset = randint(possible_yoff_start, possible_yoff_end)
-        pad[:, x_offset:x_offset + img_width, :] = image[y_offset:y_offset + 640, :, :]
+        pad[:, x_offset:x_offset + img_width, :] = image[y_offset:y_offset + target_image_height, :, :]
         return pad, x_offset, -y_offset
     elif img_height < target_image_height:
         pad = np.zeros(target_image_shape, dtype=int)
         y_offset = (target_image_height - img_height) // 2
-        possible_xoff_start = max([0, box_x2 - 480])
-        possible_xoff_end = min([img_width - 480, box_x1])
+        possible_xoff_start = max([0, box_x2 - target_image_width])
+        possible_xoff_end = min([img_width - target_image_width, box_x1])
         x_offset = randint(possible_xoff_start, possible_xoff_end)
-        pad[y_offset:y_offset + img_height, :, :] = image[:, x_offset:x_offset + 480, :]
+        pad[y_offset:y_offset + img_height, :, :] = image[:, x_offset:x_offset + target_image_width, :]
         return pad, -x_offset, y_offset
     else:
         # usual case when image > 480x640, select a random place to get a 480x640 image containing the face
-        possible_xoff_start = max([0, box_x2 - 480])
-        possible_xoff_end = min([img_width - 480, box_x1])
-        possible_yoff_start = max([0, box_y2 - 640])
-        possible_yoff_end = min([img_height - 640, box_y1])
+        possible_xoff_start = max([0, box_x2 - target_image_width])
+        possible_xoff_end = min([img_width - target_image_width, box_x1])
+        possible_yoff_start = max([0, box_y2 - target_image_height])
+        possible_yoff_end = min([img_height - target_image_height, box_y1])
         x_offset = randint(possible_xoff_start, possible_xoff_end)
         y_offset = randint(possible_yoff_start, possible_yoff_end)
-        return image[y_offset:y_offset + 640, x_offset:x_offset + 480, :], -x_offset, -y_offset
+        return image[y_offset:y_offset + target_image_height, x_offset:x_offset + target_image_width,
+               :], -x_offset, -y_offset
 
 
 def produce_positive_data(row, image):
@@ -87,8 +90,6 @@ def try_download(url, folder):
     :param url: url for the image
     :param folder: where to put the image
     :return: image path
-    >>> try_download('http://farm4.staticflickr.com/3767/10000828115_1796a73e60.jpg', './test/')
-    './test/10000828115_1796a73e60.jpg'
     """
     image_path = os.path.join(folder, str(url).split('/')[-1])
     if not os.path.isfile(image_path):
@@ -130,7 +131,7 @@ def main():
             raise AssertionError('file with name {} should exist but not found'.format(image_name))
 
 
-def test_output():
+def test_convert():
     global START_LINE, CONVERT_NUM, OUTPUT_FOLDER, IMAGE_BUFFER_PATH, INPUT_CSV_PATH
     START_LINE = 1
     CONVERT_NUM = 10
@@ -140,9 +141,42 @@ def test_output():
     main()
 
 
+def test_output(image_path: str):
+    """
+    :param image_path:
+    :return:
+    >>> test_output('output/0000002-01.png')
+    """
+    points_path = image_path.replace('.png', '.pts')
+    assert os.path.isfile(image_path)
+    assert os.path.isfile(points_path)
+    image = read_image(image_path)
+    m = read_csv(points_path, header=None).values
+    print(m)
+    classification = m[0, 0]
+    bounding_box = m[1:3, :]
+    landmarks = m[3:71, :]
+    plot.imshow(image)
+    for xs, ys in _face_segments(landmarks):
+        plot.plot(xs, ys, color='cyan', linewidth=0.5)
+    plot.gca().add_patch(
+        Rectangle(bounding_box[0], bounding_box[1, 0] - bounding_box[0, 0], bounding_box[1, 1] - bounding_box[0, 1],
+                  fill=False))
+    plot.show()
+
+
+def _face_segments(points):
+    yield points[0:17, 0], points[0:17, 1]
+    yield points[17:27, 0], points[17:27, 1]
+    yield points[27:36, 0], points[27:36, 1]
+    yield points[36:42, 0], points[36:42, 1]
+    yield points[42:48, 0], points[42:48, 1]
+    yield points[48:68, 0], points[48:68, 1]
+
+
 if __name__ == '__main__':
     if TEST_MODE:
-        test_output()
+        test_convert()
     else:
         parser = ArgumentParser(description="python script to convert DiF points to separated csv points file")
         parser.add_argument('-s', '--start', help="start line number", default=START_LINE, required=True)
