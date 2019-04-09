@@ -7,8 +7,9 @@ from matplotlib.image import imsave as save_image
 import matplotlib.pyplot as plot
 from matplotlib.patches import Rectangle
 from urllib.request import urlretrieve
-from random import randint
+from random import randint, choice
 from argparse import ArgumentParser
+from skimage.transform import resize
 
 __doc__ = 'convert pictures in DiF to 480x640 images with data augmentation'
 
@@ -25,43 +26,50 @@ CSV_BUFFER_PATH = 'DataFrameBuffer.pkl'
 target_image_width = 480
 target_image_height = 640
 target_image_shape = (target_image_height, target_image_width, 3)
+crop_ratio_range = [0.5, 0.6, 0.8, 1]
 
 
 def crop_face(image, img_width, img_height, box_x1, box_y1, box_x2, box_y2):
+    crop_area_ratio = choice(crop_ratio_range)
+    crop_width = int(target_image_width * crop_area_ratio)
+    crop_height = int(target_image_height * crop_area_ratio)
+    crop_shape = (crop_height, crop_width, 3)
     # crop area is bigger
-    if img_width < target_image_width and img_height < target_image_height:
+    if img_width < crop_width and img_height < crop_height:
         # apply zero padding, put image on the middle
-        pad = np.zeros(target_image_shape, dtype=int)
-        x_offset = (target_image_width - img_width) // 2
-        y_offset = (target_image_height - img_height) // 2
+        pad = np.zeros(crop_shape, dtype=np.uint8)
+        x_offset = (crop_width - img_width) // 2
+        y_offset = (crop_height - img_height) // 2
         pad[y_offset:img_height + y_offset, x_offset:img_width + x_offset, :] = image
-        return pad, x_offset, y_offset
-    elif img_width < target_image_width:
-        pad = np.zeros(target_image_shape, dtype=int)
-        x_offset = (target_image_width - img_width) // 2
-        possible_yoff_start = max([0, box_y2 - target_image_height])
-        possible_yoff_end = min([img_height - target_image_height, box_y1])
+    elif img_width < crop_width:
+        pad = np.zeros(crop_shape, dtype=np.uint8)
+        x_offset = (crop_width - img_width) // 2
+        possible_yoff_start = max([0, box_y2 - crop_height])
+        possible_yoff_end = min([img_height - crop_height, box_y1])
         y_offset = randint(possible_yoff_start, possible_yoff_end)
-        pad[:, x_offset:x_offset + img_width, :] = image[y_offset:y_offset + target_image_height, :, :]
-        return pad, x_offset, -y_offset
-    elif img_height < target_image_height:
-        pad = np.zeros(target_image_shape, dtype=int)
-        y_offset = (target_image_height - img_height) // 2
-        possible_xoff_start = max([0, box_x2 - target_image_width])
-        possible_xoff_end = min([img_width - target_image_width, box_x1])
+        pad[:, x_offset:x_offset + img_width, :] = image[y_offset:y_offset + crop_height, :, :]
+        y_offset = -y_offset
+    elif img_height < crop_height:
+        pad = np.zeros(crop_shape, dtype=np.uint8)
+        y_offset = (crop_height - img_height) // 2
+        possible_xoff_start = max([0, box_x2 - crop_width])
+        possible_xoff_end = min([img_width - crop_width, box_x1])
         x_offset = randint(possible_xoff_start, possible_xoff_end)
-        pad[y_offset:y_offset + img_height, :, :] = image[:, x_offset:x_offset + target_image_width, :]
-        return pad, -x_offset, y_offset
+        pad[y_offset:y_offset + img_height, :, :] = image[:, x_offset:x_offset + crop_width, :]
+        x_offset = -x_offset
     else:
         # usual case when image > 480x640, select a random place to get a 480x640 image containing the face
-        possible_xoff_start = max([0, box_x2 - target_image_width])
-        possible_xoff_end = min([img_width - target_image_width, box_x1])
-        possible_yoff_start = max([0, box_y2 - target_image_height])
-        possible_yoff_end = min([img_height - target_image_height, box_y1])
+        possible_xoff_start = max([0, box_x2 - crop_width])
+        possible_xoff_end = min([img_width - crop_width, box_x1])
+        possible_yoff_start = max([0, box_y2 - crop_height])
+        possible_yoff_end = min([img_height - crop_height, box_y1])
         x_offset = randint(possible_xoff_start, possible_xoff_end)
         y_offset = randint(possible_yoff_start, possible_yoff_end)
-        return image[y_offset:y_offset + target_image_height, x_offset:x_offset + target_image_width,
-               :], -x_offset, -y_offset
+        pad = image[y_offset:y_offset + crop_height, x_offset:x_offset + crop_width, :]
+        x_offset, y_offset = -x_offset, -y_offset
+
+    out_image = resize(pad, output_shape=target_image_shape)
+    return out_image, x_offset, y_offset, crop_area_ratio
 
 
 def produce_positive_data(row, image):
@@ -69,15 +77,13 @@ def produce_positive_data(row, image):
     face_id, url, img_width, img_height, box_x1, box_x2, box_y1, box_y2 = \
         row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8]
     # find a random place to crop face
-    image, x_off, y_off = crop_face(image, img_width, img_height, box_x1, box_y1, box_x2, box_y2)
+    image, x_off, y_off, ratio = crop_face(image, img_width, img_height, box_x1, box_y1, box_x2, box_y2)
     # output image
     out_image_path = os.path.join(OUTPUT_FOLDER, '%07d-01.png' % face_id)
     save_image(out_image_path, image)
     # create point data with offset
-    points = np.asarray(row[5:145]).reshape((70, 2)) + (x_off, y_off)
-    # line content: id, classification, bounding box, landmarks
-    content = [1] + points
-    # output content
+    points = (np.asarray(row[5:145]).reshape((70, 2)) + (x_off, y_off)) / ratio
+    # output content: id, classification, bounding box, landmarks
     out_points_path = os.path.join(OUTPUT_FOLDER, "%07d-01.pts" % face_id)
     with open(out_points_path, 'w') as file:
         file.write('1,0\n')
@@ -145,7 +151,7 @@ def test_output(image_path: str):
     """
     :param image_path:
     :return:
-    >>> test_output('output/0000002-01.png')
+    >>> test_output('output/0000004-01.png')
     """
     points_path = image_path.replace('.png', '.pts')
     assert os.path.isfile(image_path)
